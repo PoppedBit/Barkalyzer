@@ -10,8 +10,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 
+	"github.com/go-audio/wav"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/hajimehoshi/go-mp3"
@@ -215,10 +217,22 @@ func UploadAndAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Analyze uploaded file
-	_, err = analyzeMP3Amplitude(runUUID, audioFilePath)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	// Determine file type
+	fileType := filepath.Ext(handler.Filename)
+	if fileType == ".wav" {
+		err = analyzeWAVAmplitude(runUUID, audioFilePath)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	} else if fileType == ".mp3" {
+		err = analyzeMP3Amplitude(runUUID, audioFilePath)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	} else {
+		http.Error(w, "Unsupported file type", http.StatusBadRequest)
 		return
 	}
 
@@ -226,10 +240,7 @@ func UploadAndAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK) // Status 200 OK
 }
 
-func analyzeMP3Amplitude(runUUID string, filePath string) (string, error) {
-
-	runDir := os.Getenv("UPLOADS") + PathDelimiter + runUUID
-
+func analyzeMP3Amplitude(runUUID string, filePath string) error {
 	// I guess reopen it?
 	audioFile, err := os.Open(filePath)
 	if err != nil {
@@ -240,7 +251,7 @@ func analyzeMP3Amplitude(runUUID string, filePath string) (string, error) {
 	// Analyze file for peaks in volume
 	decoder, err := mp3.NewDecoder(audioFile)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	// Get audio sample rate (default is usually 44.1kHz for MP3)
@@ -274,10 +285,63 @@ func analyzeMP3Amplitude(runUUID string, filePath string) (string, error) {
 		}
 	}
 
+	writeAmplitudeDataToCSV(runUUID, amplitudeData)
+
+	return nil
+}
+
+func analyzeWAVAmplitude(runUUID, filePath string) error {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	decoder := wav.NewDecoder(file)
+	if !decoder.IsValidFile() {
+		return fmt.Errorf("invalid WAV file")
+	}
+
+	buf, err := decoder.FullPCMBuffer()
+	if err != nil {
+		return err
+	}
+
+	// Initialize a map to store the maximum amplitude for each second
+	maxAmplitudePerSecond := make(map[int]int)
+
+	// Iterate through the samples and update the map
+	for i, sample := range buf.Data {
+		second := i / int(buf.Format.SampleRate)
+		amplitude := int(sample)
+		if amplitude < 0 {
+			amplitude = -amplitude
+		}
+		if amplitude > maxAmplitudePerSecond[second] {
+			maxAmplitudePerSecond[second] = amplitude
+		}
+	}
+
+	// Convert the map to a slice of AmplitudeData
+	var amplitudeData []AmplitudeData
+	for second, amplitude := range maxAmplitudePerSecond {
+		amplitudeData = append(amplitudeData, AmplitudeData{
+			Timestamp: second,
+			Amplitude: amplitude,
+		})
+	}
+
+	writeAmplitudeDataToCSV(runUUID, amplitudeData)
+
+	return nil
+}
+
+func writeAmplitudeDataToCSV(runUUID string, data []AmplitudeData) error {
+	runDir := os.Getenv("UPLOADS") + PathDelimiter + runUUID
 	outputFilePath := runDir + PathDelimiter + "output.csv"
 	outputFile, err := os.Create(outputFilePath)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer outputFile.Close()
 
@@ -288,20 +352,25 @@ func analyzeMP3Amplitude(runUUID string, filePath string) (string, error) {
 	// Write the header
 	header := []string{"Timestamp", "Amplitude"}
 	if err := writer.Write(header); err != nil {
-		panic(err)
+		return err
 	}
 
-	for _, data := range amplitudeData {
+	// Sort data by timestamp
+	sort.Slice(data, func(i, j int) bool {
+		return data[i].Timestamp < data[j].Timestamp
+	})
+
+	for _, d := range data {
 		row := []string{
-			fmt.Sprintf("%d", data.Timestamp),
-			fmt.Sprintf("%d", data.Amplitude),
+			fmt.Sprintf("%d", d.Timestamp),
+			fmt.Sprintf("%d", d.Amplitude),
 		}
 		if err := writer.Write(row); err != nil {
 			panic(err)
 		}
 	}
 
-	return outputFilePath, nil
+	return nil
 }
 
 func calculatePeakAmplitude(pcm []byte) float64 {
