@@ -4,18 +4,28 @@ Home
 
 {{define "body"}}
 
-{{if .UploadId}}
-<div id="echart" style="width: 600px; height: 400px;"></div>
+{{if .SelectedUpload.ID}}
+<div id="echart" style="width: 100%; height: 600px;"></div>
 <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
 <script>
   const chart = echarts.init(document.getElementById('echart'));
-  chart.setOption({ xAxis: {}, yAxis: {}, series: [] });
 
-  document.body.addEventListener('htmx:afterRequest', (e) => {
-    const response = e.detail.xhr.response;
-    if (response.option) {
-      chart.setOption(response.option);
-    }
+  const rawData = {{.SelectedUpload.RawData}};  
+  const data = rawData.map(item => [item.Timestamp, item.Amplitude]);
+
+  chart.setOption({
+    xAxis: {
+      type: 'value',
+      name: 'Timestamp'
+    },
+    yAxis: {
+      type: 'value',
+      name: 'Amplitude'
+    },
+    series: [{
+      type: 'line',
+      data: data
+    }]
   });
 </script>
 {{end}}
@@ -46,7 +56,7 @@ Home
             <td>{{.File}}</td>
             <td>
                 <!-- If .ID == pages UploadId, don't show view button -->
-                {{if ne .ID $.UploadId}}
+                {{if ne .ID $.SelectedUpload.ID}}
                 <a class="button" href="/{{.ID}}">View</a>
                 {{end}}
                 <button class="danger" hx-delete="/delete/{{.ID}}">Delete</button>

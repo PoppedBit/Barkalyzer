@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -18,6 +20,28 @@ import (
 )
 
 var PathDelimiter = string(filepath.Separator)
+
+type AmplitudeData struct {
+	Timestamp int
+	Amplitude int
+}
+
+type Upload struct {
+	ID   string
+	Date string
+	File string
+}
+
+type UploadData struct {
+	ID      string
+	RawData string
+}
+
+type AppData struct {
+	helpers.BaseTemplateData
+	Uploads        []Upload
+	SelectedUpload UploadData
+}
 
 func main() {
 
@@ -39,18 +63,6 @@ func main() {
 	port := os.Getenv("PORT")
 	println("Server running at http://localhost:" + port)
 	log.Fatal(http.ListenAndServe(":"+port, router))
-}
-
-type Upload struct {
-	ID   string
-	Date string
-	File string
-}
-
-type AppData struct {
-	helpers.BaseTemplateData
-	UploadId string
-	Uploads  []Upload
 }
 
 func GetAppHandler(w http.ResponseWriter, r *http.Request) {
@@ -96,9 +108,68 @@ func GetAppHandler(w http.ResponseWriter, r *http.Request) {
 		uploadsData = append(uploadsData, uploadData)
 	}
 
+	var selectedUpload UploadData
+	if uploadId != "" {
+
+		outputFilePath := uploadsDir + PathDelimiter + uploadId + PathDelimiter + "output.csv"
+		file, err := os.Open(outputFilePath)
+		if err != nil {
+			log.Println(err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		defer file.Close()
+
+		reader := csv.NewReader(file)
+		var rawData []AmplitudeData
+		header := false
+		for {
+			record, err := reader.Read()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				log.Println(err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+
+			if !header {
+				header = true
+				continue
+			}
+
+			timestamp, err := strconv.Atoi(record[0])
+			if err != nil {
+				log.Println(err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+
+			amplitude, err := strconv.Atoi(record[1])
+			if err != nil {
+				log.Println(err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+
+			rawData = append(rawData, AmplitudeData{
+				Timestamp: timestamp,
+				Amplitude: amplitude,
+			})
+		}
+
+		rawDataJSON, _ := json.Marshal(rawData)
+
+		selectedUpload = UploadData{
+			ID:      uploadId,
+			RawData: string(rawDataJSON),
+		}
+	}
+
 	data := AppData{
-		UploadId: uploadId,
-		Uploads:  uploadsData,
+		Uploads:        uploadsData,
+		SelectedUpload: selectedUpload,
 	}
 	data.BaseTemplateData.Init(r)
 
@@ -108,11 +179,6 @@ func GetAppHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-}
-
-type AmplitudeData struct {
-	Timestamp float64 `json:"timestamp"`
-	Amplitude float64 `json:"amplitude"`
 }
 
 func UploadAndAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
@@ -149,8 +215,23 @@ func UploadAndAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Analyze uploaded file
+	_, err = analyzeMP3Amplitude(runUUID, audioFilePath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("HX-Redirect", "/"+runUUID)
+	w.WriteHeader(http.StatusOK) // Status 200 OK
+}
+
+func analyzeMP3Amplitude(runUUID string, filePath string) (string, error) {
+
+	runDir := os.Getenv("UPLOADS") + PathDelimiter + runUUID
+
 	// I guess reopen it?
-	audioFile, err = os.Open(audioFilePath)
+	audioFile, err := os.Open(filePath)
 	if err != nil {
 		log.Fatalf("failed to open file: %v", err)
 	}
@@ -159,12 +240,11 @@ func UploadAndAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 	// Analyze file for peaks in volume
 	decoder, err := mp3.NewDecoder(audioFile)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return "", err
 	}
 
 	// Get audio sample rate (default is usually 44.1kHz for MP3)
-	const sampleRate = 44100 // Adjust if your file has a different sample rate
+	const sampleRate = 48000 // Adjust if your file has a different sample rate
 	bytesPerSample := 2      // Assuming 16-bit PCM audio (2 bytes per sample)
 	samplesPerSecond := sampleRate
 	bytesPerSecond := samplesPerSecond * bytesPerSample
@@ -174,7 +254,7 @@ func UploadAndAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Array to store volume data
 	var amplitudeData []AmplitudeData
-	currentTimestamp := 0.0
+	currentTimestamp := 0
 
 	// Process audio data
 	for {
@@ -185,9 +265,9 @@ func UploadAndAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 			amplitude := calculatePeakAmplitude(buffer[:n])
 			amplitudeData = append(amplitudeData, AmplitudeData{
 				Timestamp: currentTimestamp,
-				Amplitude: amplitude,
+				Amplitude: int(amplitude),
 			})
-			currentTimestamp += 1.0
+			currentTimestamp += 1
 		}
 		if err != nil {
 			break // EOF or error
@@ -213,16 +293,15 @@ func UploadAndAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 
 	for _, data := range amplitudeData {
 		row := []string{
-			fmt.Sprintf("%f", data.Timestamp),
-			fmt.Sprintf("%f", data.Amplitude),
+			fmt.Sprintf("%d", data.Timestamp),
+			fmt.Sprintf("%d", data.Amplitude),
 		}
 		if err := writer.Write(row); err != nil {
 			panic(err)
 		}
 	}
 
-	w.Header().Set("HX-Redirect", "/"+runUUID)
-	w.WriteHeader(http.StatusOK) // Status 200 OK
+	return outputFilePath, nil
 }
 
 func calculatePeakAmplitude(pcm []byte) float64 {
