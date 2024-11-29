@@ -1,0 +1,58 @@
+{{define "title"}}
+Home
+{{end}}
+
+{{define "body"}}
+
+{{if .UploadId}}
+<div id="echart" style="width: 600px; height: 400px;"></div>
+<script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+<script>
+  const chart = echarts.init(document.getElementById('echart'));
+  chart.setOption({ xAxis: {}, yAxis: {}, series: [] });
+
+  document.body.addEventListener('htmx:afterRequest', (e) => {
+    const response = e.detail.xhr.response;
+    if (response.option) {
+      chart.setOption(response.option);
+    }
+  });
+</script>
+{{end}}
+
+<form hx-post="/upload-and-analyze" hx-swap="none" enctype="multipart/form-data">
+    <input 
+        type="file" 
+        name="file"
+        accept=".mp3"
+        required
+    >
+    <button type="submit">Upload and Analyze<img class="htmx-indicator" src="/static/spinner.svg" alt="Loading..."></button>
+</form>
+
+<h2>Uploads</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>File</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{range .Uploads}}
+        <tr>
+            <td>{{.Date}}</td>
+            <td>{{.File}}</td>
+            <td>
+                <!-- If .ID == pages UploadId, don't show view button -->
+                {{if ne .ID $.UploadId}}
+                <a class="button" href="/{{.ID}}">View</a>
+                {{end}}
+                <button class="danger" hx-delete="/delete/{{.ID}}">Delete</button>
+            </td>
+        </tr>
+        {{end}}
+    </tbody>
+</table>
+{{end}}

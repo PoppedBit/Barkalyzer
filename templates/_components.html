@@ -1,0 +1,79 @@
+{{define "modal"}}
+<div id="modal-container">
+    <div class="modal-mask">
+        <div class="modal">
+            <span class="modal-close" title="Close" onclick="closeModal()">&times;</span>
+            <div id="modal-content">
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openModal() {
+        document.getElementById('modal-container').style.display = 'block';
+    }
+    function closeModal() {
+        document.getElementById('modal-container').style.display = 'none';
+    }
+    document.body.addEventListener('htmx:afterRequest', function(event) {
+        if (event.detail.target.id === 'modal-content') {
+            openModal();
+        }
+    });
+</script>
+{{end}}
+
+{{define "spinner"}}
+<img class="htmx-indicator" src="/static/spinner.svg" alt="Loading...">
+{{end}}
+
+{{define "noTableData"}}
+<tr>
+    <td colspan="100%" class="text-center">No Data Available</td>
+</tr>
+{{end}}
+
+{{define "table-pagination"}}
+<tr>
+    <td colspan="100%">
+        <div class="flex justify-between items-center">
+            <div>
+                Rows per page: 
+                <select
+                    hx-get="{{.Pagination.BaseUrl}}" 
+                    hx-vals="js:{page: {{.Pagination.Page}}, pageSize: event.target.value}" 
+                    hx-trigger="change" 
+                    hx-target="body"
+                    hx-push-url="true"
+                >
+                    <option value="10" {{if eq .Pagination.PageSize 10}}selected{{end}}>10</option>
+                    <option value="25" {{if eq .Pagination.PageSize 25}}selected{{end}}>25</option>
+                    <option value="50" {{if eq .Pagination.PageSize 50}}selected{{end}}>50</option>
+                    <option value="-1" {{if eq .Pagination.PageSize -1}}selected{{end}}>All</option>
+                </select>
+            </div>
+            <div class="flex justify-between items-center">
+                <div class="mr-4">
+                    Showing Rows {{.Pagination.Start}} - {{.Pagination.End}} of {{.Pagination.Total}}
+                </div>
+                <div>
+                    <button 
+                        hx-get="{{.Pagination.BaseUrl}}?page={{sub .Pagination.Page 1}}&pageSize={{.Pagination.PageSize}}" 
+                        hx-target="body"
+                        hx-push-url="true"
+                        {{if eq .Pagination.Start 1 }}disabled{{end}}
+                    >Prev</button>
+                    <button 
+                        hx-get="{{.Pagination.BaseUrl}}?page={{add .Pagination.Page 1}}&pageSize={{.Pagination.PageSize}}" 
+                        hx-target="body"
+                        hx-push-url="true"
+                        {{if eq .Pagination.End .Pagination.Total}}disabled{{end}}
+                    >Next</button> 
+                </div>
+            </div>
+        </div>
+    </td>
+</tr>
+{{end}}

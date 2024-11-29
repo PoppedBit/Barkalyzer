@@ -1,0 +1,25 @@
+{{define "header"}}
+<header class="bg-blue-600 p-4 text-white">
+    <div class="container mx-auto flex justify-between items-center">
+        <h1 class="text-2xl font-bold">
+            <a href="/" class="hover:underline">{{.SiteName}}</a>
+        </h1>
+    </div>
+</header>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const dropdownButton = document.getElementById('admin-menu-button');
+        const dropdownMenu = document.getElementById('admin-menu');
+
+        dropdownButton.addEventListener('click', function () {
+            dropdownMenu.classList.toggle('hidden');
+        });
+
+        window.addEventListener('click', function (event) {
+            if (!dropdownButton.contains(event.target)) {
+                dropdownMenu.classList.add('hidden');
+            }
+        });
+    });
+</script>
+{{end}}

@@ -1,0 +1,115 @@
+/* tailwindcss -i modules/shared/styles.css -o static/styles.css --minify */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Loading Spinner */
+.htmx-indicator{
+    display:none;
+}
+.htmx-request .htmx-indicator{
+    display:inline;
+}
+.htmx-request.htmx-indicator{
+    display:inline;
+}
+.htmx-request .htmx-trigger,
+.htmx-request.htmx-trigger{
+    display: none;
+}
+
+h2{
+    @apply text-xl font-bold mb-4;
+}
+
+h3{
+    @apply text-lg font-bold mb-4;
+}
+
+hr{
+    @apply my-8;
+}
+
+/* Tables */
+table{
+    @apply min-w-full bg-white shadow-md rounded my-6;
+}
+
+table thead tr{
+    @apply bg-gray-800 text-white;
+}
+
+table tr th,
+table tr td{
+    @apply text-left py-3 px-4
+}
+
+table thead tr th{
+    @apply uppercase font-semibold text-sm;
+}
+
+/* Forms */
+form {
+    @apply space-y-4;
+}
+
+form .field{
+    @apply flex flex-col;
+}
+
+form .field label{
+    @apply block text-sm font-medium text-gray-700;
+}
+
+form .field input{
+    @apply shadow appearance-none border rounded w-full py-2 px-3 bg-gray-200 text-gray-700 leading-tight focus:outline-none focus:bg-white;
+}
+
+select{
+    @apply shadow appearance-none border rounded py-2 px-3 bg-gray-200 text-gray-700 leading-tight focus:outline-none focus:bg-white;
+}
+
+/* Buttons */
+button,
+a.button{
+    @apply bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none leading-5;
+}
+
+button:disabled{
+    @apply bg-gray-400 cursor-not-allowed;
+}
+
+button .htmx-indicator{
+    height: 1rem;
+}
+
+button.secondary,
+a.button.secondary{
+    @apply bg-white text-blue-600 hover:bg-gray-200;
+}
+
+button.danger{
+    @apply bg-red-500 hover:bg-red-700;
+}
+
+button.text{
+    @apply bg-transparent text-white hover:text-blue-700;
+}
+
+/* Modal */
+#modal-container{
+    display: none;
+}
+
+#modal-container .modal-mask{
+    @apply fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full;
+}
+
+#modal-container .modal-mask .modal{
+    @apply relative top-1/4 mx-auto p-5 border w-1/2 shadow-lg rounded-md bg-white pt-12;
+}
+
+#modal-container .modal-close{
+    @apply absolute top-0 right-0 mt-4 mr-4 text-gray-600 hover:text-gray-900 cursor-pointer text-3xl font-bold;
+}

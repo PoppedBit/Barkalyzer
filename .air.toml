@@ -1,0 +1,6 @@
+[build]
+exclude_dir = ["tmp", "uploads"]
+exclude_file = ["README.md"]
+
+[log]
+level = "debug"
