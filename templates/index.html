@@ -5,31 +5,48 @@ Home
 {{define "body"}}
 
 {{if .SelectedUpload.ID}}
+<div>
+  <h2>Meta Data</h2>
+  <ul>
+    <li>Max Amplitude: {{.SelectedUpload.Metadata.MaxAmplitude}}</li>
+  </ul>
+</div>
 <div id="echart" style="width: 100%; height: 600px;"></div>
+<hr />
 <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
 <script>
   const chart = echarts.init(document.getElementById('echart'));
 
-  const rawData = {{.SelectedUpload.RawData}};  
-  const data = rawData.map(item => [item.Timestamp, item.Amplitude]);
+  const rawData = JSON.parse('{{.SelectedUpload.RawData}}');  
+  const data = rawData.map(item => [item.Timestamp * 1000 / 2, item.Amplitude]);
 
   chart.setOption({
     xAxis: {
-      type: 'value',
-      name: 'Timestamp'
+      type: 'time',
+      name: 'Timestamp',
+      // axisLabel: {
+      //   formatter: function (value) {
+      //     console.log(value);
+      //     return value;
+      //     const date = new Date(value);
+      //     const hours = String(date.getUTCHours()).padStart(2, '0');
+      //     const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+      //     const seconds = String(date.getUTCSeconds()).padStart(2, '0');
+      //     return `${hours}:${minutes}:${seconds}`;
+      //   }
+      // }
     },
     yAxis: {
       type: 'value',
       name: 'Amplitude'
     },
     series: [{
-      type: 'line',
+      type: 'bar',
       data: data
     }]
   });
 </script>
 {{end}}
-
 <form hx-post="/upload-and-analyze" hx-swap="none" enctype="multipart/form-data">
     <input 
         type="file" 

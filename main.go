@@ -34,9 +34,14 @@ type Upload struct {
 	File string
 }
 
+type UploadMetadata struct {
+	MaxAmplitude int
+}
+
 type UploadData struct {
-	ID      string
-	RawData string
+	ID       string
+	RawData  string
+	Metadata UploadMetadata
 }
 
 type AppData struct {
@@ -102,10 +107,13 @@ func GetAppHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Get created date
+		audioFile := uploadFiles[0]
+
 		uploadData := Upload{
 			ID:   upload.Name(),
 			Date: "TODO",
-			File: uploadFiles[0].Name(),
+			File: audioFile.Name(),
 		}
 		uploadsData = append(uploadsData, uploadData)
 	}
@@ -123,8 +131,11 @@ func GetAppHandler(w http.ResponseWriter, r *http.Request) {
 		defer file.Close()
 
 		reader := csv.NewReader(file)
+
 		var rawData []AmplitudeData
+		var maxAmplitude int = 0
 		header := false
+
 		for {
 			record, err := reader.Read()
 			if err == io.EOF {
@@ -159,13 +170,22 @@ func GetAppHandler(w http.ResponseWriter, r *http.Request) {
 				Timestamp: timestamp,
 				Amplitude: amplitude,
 			})
+
+			if amplitude > maxAmplitude {
+				maxAmplitude = amplitude
+			}
 		}
 
 		rawDataJSON, _ := json.Marshal(rawData)
 
+		metadata := UploadMetadata{
+			MaxAmplitude: maxAmplitude,
+		}
+
 		selectedUpload = UploadData{
-			ID:      uploadId,
-			RawData: string(rawDataJSON),
+			ID:       uploadId,
+			RawData:  string(rawDataJSON),
+			Metadata: metadata,
 		}
 	}
 
